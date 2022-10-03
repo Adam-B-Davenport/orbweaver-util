@@ -41,7 +41,7 @@ fn process_events(mut device: Device) {
         Ok(p) => p,
         Err(err) => {
             println!("{}", err);
-            return;
+            exit(-1);
         }
     };
     loop {
