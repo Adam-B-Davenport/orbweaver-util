@@ -1,10 +1,11 @@
-#![feature(buf_read_has_data_left)]
-
 use std::process::exit;
 
 use evdev::{Device, EventType};
 use processor::EventProcessor;
 mod processor;
+
+use utils::*;
+mod utils;
 
 struct Cleanup;
 
