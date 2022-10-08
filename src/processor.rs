@@ -2,6 +2,7 @@ use evdev::{
     uinput::{VirtualDevice, VirtualDeviceBuilder},
     AttributeSet, EventType, InputEvent, Key,
 };
+
 use std::{
     collections::HashMap,
     sync::{mpsc::Sender, Arc, Mutex},
@@ -11,191 +12,43 @@ use std::{io, thread};
 
 use std::sync::mpsc;
 
-const DELAY: u64 = 50;
+use crate::utils::{create_str_map, ConfigStruct, KeyStruct, KeyType, UserConfig};
 
-#[derive(Copy, Clone)]
-pub enum KeyType {
-    Regular,
-    Repeat,
-}
-
-pub struct MapStruct {
-    key_str: String,
-    key_type: KeyType,
-}
-impl Clone for MapStruct {
-    fn clone(&self) -> Self {
-        return MapStruct {
-            key_str: (self.key_str.clone()),
-            key_type: self.key_type,
-        };
-    }
-}
-
-pub struct KeyStruct {
-    pub code: u16,
-    pub key_type: KeyType,
-}
-
-impl Clone for KeyStruct {
-    fn clone(&self) -> Self {
-        return KeyStruct {
-            code: (self.code.clone()),
-            key_type: (self.key_type),
-        };
-    }
-}
-
-// Hashmap to translate a string to a Key
-fn create_user_map() -> HashMap<String, u16> {
-    return HashMap::from(
-        [
-            ("1", Key::KEY_1),
-            ("2", Key::KEY_2),
-            ("3", Key::KEY_3),
-            ("4", Key::KEY_4),
-            ("5", Key::KEY_5),
-            ("6", Key::KEY_6),
-            ("7", Key::KEY_7),
-            ("8", Key::KEY_8),
-            ("9", Key::KEY_9),
-            ("0", Key::KEY_0),
-            ("Q", Key::KEY_Q),
-            ("W", Key::KEY_W),
-            ("E", Key::KEY_E),
-            ("R", Key::KEY_R),
-            ("T", Key::KEY_T),
-            ("Y", Key::KEY_Y),
-            ("U", Key::KEY_U),
-            ("I", Key::KEY_I),
-            ("O", Key::KEY_O),
-            ("P", Key::KEY_P),
-            ("A", Key::KEY_A),
-            ("S", Key::KEY_S),
-            ("D", Key::KEY_D),
-            ("F", Key::KEY_F),
-            ("G", Key::KEY_G),
-            ("H", Key::KEY_H),
-            ("J", Key::KEY_J),
-            ("K", Key::KEY_K),
-            ("L", Key::KEY_L),
-            ("SEMI", Key::KEY_SEMICOLON),
-            ("Z", Key::KEY_Z),
-            ("X", Key::KEY_X),
-            ("C", Key::KEY_C),
-            ("V", Key::KEY_V),
-            ("B", Key::KEY_B),
-            ("M", Key::KEY_M),
-            ("N", Key::KEY_N),
-            ("COMMA", Key::KEY_COMMA),
-            ("DOT", Key::KEY_DOT),
-            ("BSLSH", Key::KEY_SLASH),
-            ("F1", Key::KEY_F1),
-            ("F2", Key::KEY_F2),
-            ("F3", Key::KEY_F3),
-            ("F4", Key::KEY_F4),
-            ("F5", Key::KEY_F5),
-            ("F6", Key::KEY_F6),
-            ("F7", Key::KEY_F7),
-            ("F8", Key::KEY_F8),
-            ("F9", Key::KEY_F9),
-            ("F10", Key::KEY_F10),
-            ("F11", Key::KEY_F11),
-            ("F12", Key::KEY_F12),
-            ("F13", Key::KEY_F13),
-            ("F14", Key::KEY_F14),
-            ("F15", Key::KEY_F15),
-            ("F16", Key::KEY_F16),
-            ("F17", Key::KEY_F17),
-            ("F18", Key::KEY_F18),
-            ("F19", Key::KEY_F19),
-            ("F20", Key::KEY_F20),
-            ("F21", Key::KEY_F21),
-            ("F22", Key::KEY_F22),
-            ("F23", Key::KEY_F23),
-            ("F24", Key::KEY_F24),
-            ("SPACE", Key::KEY_SPACE),
-            ("CTRL", Key::KEY_LEFTCTRL),
-            ("SHIFT", Key::KEY_LEFTSHIFT),
-            ("TAB", Key::KEY_TAB),
-            ("ESC", Key::KEY_ESC),
-        ]
-        .map(|(key_str, key)| (key_str.to_string(), key.code())),
-    );
-}
-
-fn key_str_map() -> HashMap<u16, MapStruct> {
-    return HashMap::from(
-        [
-            (1, ("ESC", KeyType::Regular)),
-            (2, ("F1", KeyType::Regular)),
-            (3, ("F2", KeyType::Regular)),
-            (4, ("F3", KeyType::Regular)),
-            (5, ("F4", KeyType::Regular)),
-            (6, ("TAB", KeyType::Regular)),
-            (7, ("1", KeyType::Repeat)),
-            (8, ("2", KeyType::Repeat)),
-            (9, ("3", KeyType::Repeat)),
-            (10, ("4", KeyType::Repeat)),
-            (11, ("CTRL", KeyType::Regular)),
-            (12, ("Q", KeyType::Repeat)),
-            (13, ("F", KeyType::Repeat)),
-            (14, ("E", KeyType::Repeat)),
-            (15, ("R", KeyType::Repeat)),
-            (16, ("SHIFT", KeyType::Regular)),
-            (17, ("Z", KeyType::Repeat)),
-            (18, ("X", KeyType::Repeat)),
-            (19, ("C", KeyType::Repeat)),
-            (20, ("Z", KeyType::Repeat)),
-            (21, ("W", KeyType::Regular)),
-            (22, ("A", KeyType::Regular)),
-            (23, ("S", KeyType::Regular)),
-            (24, ("D", KeyType::Regular)),
-            (25, ("M", KeyType::Regular)),
-            (26, ("SPACE", KeyType::Regular)),
-        ]
-        .map(|(key_indx, (key_str, key_type))| {
-            (
-                key_indx,
-                MapStruct {
-                    key_str: key_str.to_string(),
-                    key_type,
-                },
-            )
-        }),
-    );
-}
+const DELAY: u64 = 75;
 
 // The default code map for the orbweaver to map to the number on the gamepad
-fn create_code_map() -> HashMap<u16, u16> {
-    return HashMap::from([
-        (Key::KEY_GRAVE.code(), 1),
-        (Key::KEY_1.code(), 2),
-        (Key::KEY_2.code(), 3),
-        (Key::KEY_3.code(), 4),
-        (Key::KEY_4.code(), 5),
-        (Key::KEY_TAB.code(), 6),
-        (Key::KEY_Q.code(), 7),
-        (Key::KEY_W.code(), 8),
-        (Key::KEY_E.code(), 9),
-        (Key::KEY_R.code(), 10),
-        (Key::KEY_CAPSLOCK.code(), 11),
-        (Key::KEY_A.code(), 12),
-        (Key::KEY_S.code(), 13),
-        (Key::KEY_D.code(), 14),
-        (Key::KEY_F.code(), 15),
-        (Key::KEY_LEFTSHIFT.code(), 16),
-        (Key::KEY_Z.code(), 17),
-        (Key::KEY_X.code(), 18),
-        (Key::KEY_C.code(), 19),
-        (Key::KEY_V.code(), 20),
-        (Key::KEY_UP.code(), 21),
-        (Key::KEY_LEFT.code(), 22),
-        (Key::KEY_DOWN.code(), 23),
-        (Key::KEY_RIGHT.code(), 24),
-        (Key::KEY_SPACE.code(), 25),
-        (Key::KEY_LEFTALT.code(), 26),
-    ]);
+fn default_code_map() -> HashMap<u16, u16> {
+    return HashMap::from(
+        [
+            (Key::KEY_GRAVE, 1),
+            (Key::KEY_1, 2),
+            (Key::KEY_2, 3),
+            (Key::KEY_3, 4),
+            (Key::KEY_4, 5),
+            (Key::KEY_TAB, 6),
+            (Key::KEY_Q, 7),
+            (Key::KEY_W, 8),
+            (Key::KEY_E, 9),
+            (Key::KEY_R, 10),
+            (Key::KEY_CAPSLOCK, 11),
+            (Key::KEY_A, 12),
+            (Key::KEY_S, 13),
+            (Key::KEY_D, 14),
+            (Key::KEY_F, 15),
+            (Key::KEY_LEFTSHIFT, 16),
+            (Key::KEY_Z, 17),
+            (Key::KEY_X, 18),
+            (Key::KEY_C, 19),
+            (Key::KEY_V, 20),
+            (Key::KEY_UP, 21),
+            (Key::KEY_LEFT, 22),
+            (Key::KEY_DOWN, 23),
+            (Key::KEY_RIGHT, 24),
+            (Key::KEY_SPACE, 25),
+            (Key::KEY_LEFTALT, 26),
+        ]
+        .map(|(key, code)| (key.code(), code)),
+    );
 }
 
 fn create_key_set(key_map: &HashMap<String, u16>) -> AttributeSet<Key> {
@@ -206,13 +59,13 @@ fn create_key_set(key_map: &HashMap<String, u16>) -> AttributeSet<Key> {
     return attribute_set;
 }
 
-fn create_final_map(
+fn load_keymap(
     default_map: &HashMap<u16, u16>,
-    user_keymap: &HashMap<u16, MapStruct>,
+    user_keymap: &HashMap<u16, ConfigStruct>,
     key_codes: &HashMap<String, u16>,
 ) -> HashMap<u16, KeyStruct> {
     // default_map => user_map => key_codes
-    let mut final_map: HashMap<u16, KeyStruct> = HashMap::new();
+    let mut keymap: HashMap<u16, KeyStruct> = HashMap::new();
     for (key, value) in default_map.iter() {
         let map_struct = match user_keymap.get(&value) {
             Some(v) => v,
@@ -226,7 +79,7 @@ fn create_final_map(
                 panic!("Invalid keymap.")
             }
         };
-        final_map.insert(
+        keymap.insert(
             key.clone(),
             KeyStruct {
                 code: key_code.clone(),
@@ -235,7 +88,7 @@ fn create_final_map(
         );
     }
 
-    return final_map;
+    return keymap;
 }
 
 pub struct EventProcessor {
@@ -245,9 +98,9 @@ pub struct EventProcessor {
 }
 
 impl EventProcessor {
-    pub fn new() -> io::Result<EventProcessor> {
-        let key_set = create_user_map();
-        let key_map = create_final_map(&create_code_map(), &key_str_map(), &key_set);
+    pub fn new(config: UserConfig) -> io::Result<EventProcessor> {
+        let key_set = create_str_map();
+        let key_map = load_keymap(&default_code_map(), &config, &key_set);
         let output_device = VirtualDeviceBuilder::new()?
             .name("Virtual Orbweaver")
             .with_keys(&create_key_set(&key_set))?
@@ -290,6 +143,7 @@ impl EventProcessor {
         if value == 0 {
             self.stop_thread(code);
         } else {
+            // If the thread is already running nothing needs done.
             match self.thread_map.get(&code) {
                 Some(_) => {}
                 None => {
@@ -315,6 +169,7 @@ impl EventProcessor {
                         print!("Failed to send event.")
                     }
                 };
+                // Check if the user has released the triggering key
                 match rx.try_recv() {
                     Ok(_) => {
                         break;
@@ -324,7 +179,7 @@ impl EventProcessor {
                 down = !down;
                 thread::sleep(Duration::from_millis(DELAY));
             }
-            // ensure the key up signal is sent
+            // Ensure the key up signal is sent when the thread stops
             if down {
                 match output_device.lock().unwrap().emit(&[InputEvent::new(
                     EventType::KEY,
