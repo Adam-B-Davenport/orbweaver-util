@@ -70,7 +70,7 @@ fn main() {
     let _cleanup = Cleanup;
     let config = load_config(
         env::args()
-            .nth(2)
+            .nth(1)
             .expect("Failed to read config cmd line arg."),
     );
 
