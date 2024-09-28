@@ -2,6 +2,7 @@ use evdev::{
     uinput::{VirtualDevice, VirtualDeviceBuilder},
     AttributeSet, EventType, InputEvent, Key,
 };
+use rand::Rng;
 
 use std::{
     collections::HashMap,
@@ -14,7 +15,8 @@ use std::sync::mpsc;
 
 use crate::utils::{create_str_map, ConfigStruct, KeyStruct, KeyType, UserConfig};
 
-const DELAY: u64 = 75;
+const DELAY: u64 = 50;
+const DELTA: u64 = 25;
 
 // The default code map for the orbweaver to map to the number on the gamepad
 fn default_code_map() -> HashMap<u16, u16> {
@@ -158,6 +160,7 @@ impl EventProcessor {
         let output_device = Arc::clone(&self.output_device);
         thread::spawn(move || {
             let mut down = true;
+            let mut rng = rand::thread_rng();
             loop {
                 match output_device.lock().unwrap().emit(&[InputEvent::new(
                     EventType::KEY,
@@ -177,7 +180,7 @@ impl EventProcessor {
                     Err(_) => {}
                 }
                 down = !down;
-                thread::sleep(Duration::from_millis(DELAY));
+                thread::sleep(Duration::from_millis(DELAY + rng.gen_range(0..DELTA)));
             }
             // Ensure the key up signal is sent when the thread stops
             if down {
