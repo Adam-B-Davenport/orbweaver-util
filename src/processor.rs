@@ -15,7 +15,7 @@ use std::sync::mpsc;
 
 use crate::utils::{create_str_map, ConfigStruct, KeyStruct, KeyType, UserConfig};
 
-const DELAY: u64 = 50;
+const DELAY: u64 = 40;
 const DELTA: u64 = 25;
 
 // The default code map for the orbweaver to map to the number on the gamepad
@@ -161,6 +161,7 @@ impl EventProcessor {
         thread::spawn(move || {
             let mut down = true;
             let mut rng = rand::thread_rng();
+            let mut first = true;
             loop {
                 match output_device.lock().unwrap().emit(&[InputEvent::new(
                     EventType::KEY,
@@ -180,7 +181,12 @@ impl EventProcessor {
                     Err(_) => {}
                 }
                 down = !down;
-                thread::sleep(Duration::from_millis(DELAY + rng.gen_range(0..DELTA)));
+                if first && down {
+                    thread::sleep(Duration::from_millis(5));
+                    first = false;
+                } else {
+                    thread::sleep(Duration::from_millis(DELAY + rng.gen_range(0..DELTA)));
+                }
             }
             // Ensure the key up signal is sent when the thread stops
             if down {

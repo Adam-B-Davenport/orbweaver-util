@@ -25,6 +25,7 @@ impl Drop for Cleanup {
     }
 }
 pub fn is_orbweaver_keyboard(device: &Device) -> bool {
+    println!("Device: {}", device.name().unwrap());
     return device.supported_leds().is_some()
         && device.input_id().vendor() == 0x1532
         && device.input_id().product() == 0x0207;
