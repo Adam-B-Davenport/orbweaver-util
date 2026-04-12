@@ -7,7 +7,7 @@ use rand::Rng;
 use std::{
     collections::HashMap,
     sync::{mpsc::Sender, Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use std::{io, thread};
 
@@ -20,7 +20,7 @@ const DELTA: u64 = 25;
 
 // The default code map for the orbweaver to map to the number on the gamepad
 fn default_code_map() -> HashMap<u16, u16> {
-    return HashMap::from(
+    HashMap::from(
         [
             (Key::KEY_GRAVE, 1),
             (Key::KEY_1, 2),
@@ -50,7 +50,7 @@ fn default_code_map() -> HashMap<u16, u16> {
             (Key::KEY_LEFTALT, 26),
         ]
         .map(|(key, code)| (key.code(), code)),
-    );
+    )
 }
 
 fn create_key_set(key_map: &HashMap<String, u16>) -> AttributeSet<Key> {
@@ -97,6 +97,7 @@ pub struct EventProcessor {
     pub key_map: HashMap<u16, KeyStruct>,
     pub output_device: Arc<Mutex<VirtualDevice>>,
     pub thread_map: HashMap<u16, Sender<()>>,
+    pub last_map_time: Instant,
 }
 
 impl EventProcessor {
@@ -111,6 +112,7 @@ impl EventProcessor {
             key_map,
             output_device: Arc::new(Mutex::new(output_device)),
             thread_map: HashMap::new(),
+            last_map_time: Instant::now(),
         })
     }
 
@@ -121,7 +123,15 @@ impl EventProcessor {
                     self.repeat_key(ks.code, event.value());
                 }
                 KeyType::Regular => {
-                    self.regular_key(ks.code, event.value());
+                    if ks.code == Key::KEY_M.code() && event.value() == 1 {
+                        let now = Instant::now();
+                        if (now.duration_since(self.last_map_time)) < Duration::from_millis(250) {
+                            self.regular_key(ks.code, 1);
+                            self.last_map_time = now;
+                        }
+                    } else {
+                        self.regular_key(ks.code, event.value());
+                    }
                 }
             },
             None => {
